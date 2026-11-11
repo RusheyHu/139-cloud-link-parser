@@ -39,6 +39,36 @@ def md5(s: str) -> str:
     return hashlib.md5(s.encode("utf-8")).hexdigest()
 
 
+def get_account_from_cookies(cookies: dict) -> str:
+    """
+    The share-download API's `account` field expects the account identifier
+    (normally the mobile number), not the encrypted cookie value itself.
+    The official web client stores it as Base64 in ORCHES-I-ACCOUNT-ENCRYPT.
+    """
+    raw = (cookies or {}).get("ORCHES-I-ACCOUNT-ENCRYPT", "")
+    if not raw:
+        raise ValueError(
+            "登录信息缺少 ORCHES-I-ACCOUNT-ENCRYPT。请重新扫码登录；"
+            "登录完成后仍缺失时，请检查浏览器是否登录到了 yun.139.com。"
+        )
+
+    # Browser cookie values may be URL-escaped and Base64 padding may be omitted.
+    raw = urllib.parse.unquote(str(raw)).strip().strip('"')
+    raw += "=" * ((4 - len(raw) % 4) % 4)
+    try:
+        decoded = base64.b64decode(raw, validate=True).decode("utf-8").strip()
+    except Exception:
+        raise ValueError(
+            "无法解码登录 Cookie 中的账号标识。请退出程序后重新扫码登录，"
+            "不要手动填写或分享 Cookie。"
+        )
+
+    # Do not expose the decoded account in logs or error messages.
+    if not decoded or len(decoded) > 64 or any(ch.isspace() for ch in decoded):
+        raise ValueError("登录 Cookie 解出的账号标识格式异常，请重新扫码登录。")
+    return decoded
+
+
 def make_headers(body, cookies):
     stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     nonce = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
@@ -104,8 +134,9 @@ class CloudClient:
         return self.post("getOutLinkInfoV6", body)
 
     def get_direct(self, link_id, fpath):
+        account = get_account_from_cookies(self.cookies)
         body = {"dlFromOutLinkReqV3": {
-            "account": "", "linkID": link_id,
+            "account": account, "linkID": link_id,
             "coIDLst": {"item": [fpath]}
         }}
         return self.post("dlFromOutLinkV3", body)
