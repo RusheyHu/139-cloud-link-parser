@@ -280,9 +280,11 @@ class MainWindow(QMainWindow):
         self.login_worker = None; self.parse_worker = None
         self.load_example()
 
+    
     def load_example(self):
-        self.link.setPlainText("https://yun.139.com/shareweb/#/w/i/2yA8ExguHxCsq")
-        self.output.append("已填入你提供的测试分享链接。尚未验证该分享的实际文件内容。")
+        self.link.clear()
+        self.output.setPlainText("请粘贴中国移动云盘分享链接，然后点击解析。")
+
 
     def login(self):
         self.login_btn.setEnabled(False)
